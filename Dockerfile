@@ -18,8 +18,8 @@ RUN npm ci
 # Copy the rest of the source and build.
 COPY . .
 
-# Generate the Prisma client, then compile TypeScript -> dist/.
-RUN npx prisma generate && npm run build
+# `npm run build` now runs `prisma generate` before compiling TypeScript -> dist/.
+RUN npm run build
 
 ########################################
 # Stage 2 — lean runtime image
