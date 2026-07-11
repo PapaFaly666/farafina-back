@@ -1,0 +1,38 @@
+# Build outputs (regenerated inside the image)
+dist/
+build/
+coverage/
+.nyc_output/
+
+# Dependencies (reinstalled with npm ci)
+node_modules/
+
+# Env & secrets — never bake these into the image
+.env
+.env.*
+!.env.example
+
+# Logs
+logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
+
+# Git / IDE / OS
+.git
+.gitignore
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+
+# Docker
+Dockerfile
+.dockerignore
+docker-compose*.yml
+
+# Tests & docs (not needed at runtime)
+test/
+**/*.spec.ts
+README.md

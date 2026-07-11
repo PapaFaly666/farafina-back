@@ -1,0 +1,40 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: farafina-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: farafina
+    ports:
+      - '5432:5432'
+    volumes:
+      - farafina_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U postgres -d farafina']
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: farafina-api
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      # Point Prisma/the app at the postgres service on the compose network.
+      # Overrides DATABASE_URL from .env so containers talk over the docker network.
+      DATABASE_URL: 'postgresql://postgres:postgres@postgres:5432/farafina?schema=public'
+      PORT: '3000'
+    ports:
+      - '3000:3000'
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  farafina_pgdata:

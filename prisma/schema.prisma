@@ -1,0 +1,56 @@
+// Prisma schema for the Farafina backend.
+// Docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+/// Admin/client account allowed to log into the hidden dashboard.
+/// Login is by `username` (e.g. "superadmin"); email is kept as optional info.
+model Admin {
+  id        String   @id @default(uuid())
+  username  String?  @unique
+  email     String?  @unique
+  password  String
+  name      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+/// Singleton row holding the whole editable site content as a JSON document.
+/// There is always exactly one row (id = 1).
+model SiteContent {
+  id        Int      @id @default(1)
+  data      Json
+  updatedAt DateTime @updatedAt
+}
+
+/// Email addresses collected by the public newsletter form.
+model NewsletterSubscription {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  createdAt DateTime @default(now())
+}
+
+enum ContactStatus {
+  NEW
+  DONE
+  CALLBACK
+}
+
+/// Messages sent through the public contact form.
+model ContactMessage {
+  id        String        @id @default(uuid())
+  name      String
+  email     String
+  company   String?
+  message   String
+  read      Boolean       @default(false)
+  status    ContactStatus @default(NEW)
+  repliedAt DateTime?
+  createdAt DateTime      @default(now())
+}
