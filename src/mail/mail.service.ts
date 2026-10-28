@@ -53,6 +53,7 @@ export class MailService {
     subject: string;
     text: string;
     html: string;
+    replyTo?: string;
   }): Promise<void> {
     if (!this.smtpConfigured) {
       throw new InternalServerErrorException(
@@ -70,6 +71,7 @@ export class MailService {
     await transporter.sendMail({
       from: `Farafina Conseils & Business <${this.smtpUser}>`,
       to: opts.to,
+      replyTo: opts.replyTo,
       subject: opts.subject,
       text: opts.text,
       html: opts.html,
@@ -86,6 +88,7 @@ export class MailService {
     subject: string;
     text: string;
     html: string;
+    replyTo?: string;
   }): Promise<void> {
     if (this.resend) {
       try {
@@ -95,6 +98,7 @@ export class MailService {
           subject: opts.subject,
           text: opts.text,
           html: opts.html,
+          replyTo: opts.replyTo,
         });
         if (!error) {
           this.logger.log(`E-mail envoyé via Resend à ${opts.to} (${data?.id})`);
@@ -290,5 +294,102 @@ export class MailService {
     }
 
     return { sent };
+  }
+
+  /**
+   * Notifies Arona Diao (site owner) when someone submits a message through the contact form.
+   * Delivered to his professional inbox (arona.diao@fcb-impact.com) and his Gmail account.
+   */
+  async sendContactNotification(opts: {
+    name: string;
+    email: string;
+    company?: string;
+    message: string;
+  }) {
+    if (!this.configured) {
+      this.logger.warn(
+        'Service e-mail non configuré (Resend ou SMTP indisponible). Notification non envoyée.',
+      );
+      return { ok: false };
+    }
+
+    const defaultRecipients = 'arona.diao@fcb-impact.com,arona.diao.pro@gmail.com';
+    const rawList = process.env.CONTACT_NOTIFICATION_EMAILS || defaultRecipients;
+    const recipients = rawList
+      .split(',')
+      .map((e) => e.trim())
+      .filter(Boolean);
+
+    const subject = `[Nouveau contact FCB] ${opts.name}${
+      opts.company ? ` — ${opts.company}` : ''
+    }`;
+
+    const text = `Nouveau message reçu depuis le site web FCB (fcb-impact.com) :
+
+Nom complet : ${opts.name}
+E-mail : ${opts.email}
+Entreprise : ${opts.company || 'Non renseignée'}
+
+Message :
+${opts.message}
+
+---
+Pour répondre au prospect, vous pouvez directement cliquer sur « Répondre » à cet e-mail (${opts.email}).`;
+
+    const inner = `
+      <p style="margin:0 0 16px;color:#2a3346;font-size:15px;line-height:1.7">
+        Bonjour Arona, vous avez reçu un nouveau message depuis le formulaire de contact du site FCB&nbsp;:
+      </p>
+      <table style="width:100%;border-collapse:collapse;margin:0 0 20px;background:#f9f8f5;border-radius:10px;border:1px solid #e9e5dc">
+        <tr>
+          <td style="padding:10px 14px;font-weight:bold;color:#0c4b8e;width:130px;border-bottom:1px solid #e9e5dc">Nom :</td>
+          <td style="padding:10px 14px;color:#17233a;border-bottom:1px solid #e9e5dc"><strong>${escapeHtml(opts.name)}</strong></td>
+        </tr>
+        <tr>
+          <td style="padding:10px 14px;font-weight:bold;color:#0c4b8e;border-bottom:1px solid #e9e5dc">E-mail :</td>
+          <td style="padding:10px 14px;color:#17233a;border-bottom:1px solid #e9e5dc">
+            <a href="mailto:${escapeHtml(opts.email)}" style="color:#0c4b8e;text-decoration:none">${escapeHtml(opts.email)}</a>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:10px 14px;font-weight:bold;color:#0c4b8e;border-bottom:1px solid #e9e5dc">Entreprise :</td>
+          <td style="padding:10px 14px;color:#17233a;border-bottom:1px solid #e9e5dc">${escapeHtml(opts.company || 'Non renseignée')}</td>
+        </tr>
+      </table>
+      <div style="margin:20px 0;padding:16px 18px;background:#ffffff;border-left:4px solid #f49f00;border-radius:0 10px 10px 0;border-top:1px solid #e9e5dc;border-right:1px solid #e9e5dc;border-bottom:1px solid #e9e5dc">
+        <span style="display:block;margin-bottom:8px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#9a9382">Besoin / Message :</span>
+        <span style="font-size:14.5px;line-height:1.7;color:#2a3346">${escapeHtml(opts.message).replace(/\n/g, '<br>')}</span>
+      </div>
+      <p style="margin:22px 0 0;color:#555e6d;font-size:13px;line-height:1.5">
+        👉 <em>Vous pouvez répondre directement à cet e-mail pour écrire à ${escapeHtml(opts.name)} (${escapeHtml(opts.email)}).</em>
+      </p>
+    `;
+
+    const html = this.layout({
+      eyebrow: 'Demande de contact reçue',
+      heading: `Demande de ${opts.name}`,
+      inner,
+      footerNote:
+        'Notification envoyée automatiquement par le site web FCB (fcb-impact.com).',
+    });
+
+    for (const to of recipients) {
+      try {
+        await this.deliver({
+          to,
+          subject,
+          text,
+          html,
+          replyTo: opts.email,
+        });
+        this.logger.log(`Notification contact envoyée à ${to}`);
+      } catch (err) {
+        this.logger.warn(
+          `Échec envoi notification contact à ${to}: ${(err as Error).message}`,
+        );
+      }
+    }
+
+    return { ok: true };
   }
 }

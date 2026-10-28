@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { ContactStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { MailService } from '../mail/mail.service';
@@ -12,13 +12,15 @@ interface CreateMessageInput {
 
 @Injectable()
 export class ContactService {
+  private readonly logger = new Logger(ContactService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly mail: MailService,
   ) {}
 
   async create(input: CreateMessageInput) {
-    await this.prisma.contactMessage.create({
+    const created = await this.prisma.contactMessage.create({
       data: {
         name: input.name.trim(),
         email: input.email.toLowerCase().trim(),
@@ -26,7 +28,22 @@ export class ContactService {
         message: input.message.trim(),
       },
     });
-    return { ok: true };
+
+    // Send email notification to Arona Diao (pro & Gmail)
+    try {
+      await this.mail.sendContactNotification({
+        name: input.name.trim(),
+        email: input.email.toLowerCase().trim(),
+        company: input.company?.trim() || undefined,
+        message: input.message.trim(),
+      });
+    } catch (err) {
+      this.logger.warn(
+        `Erreur lors de l'envoi de la notification contact: ${(err as Error).message}`,
+      );
+    }
+
+    return { ok: true, id: created.id };
   }
 
   list() {
